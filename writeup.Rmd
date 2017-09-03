@@ -1,4 +1,29 @@
-# set the working directory and upload libraries
+---
+title: "writeup"
+author: "pherreraariza"
+date: "2/9/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Overview
+
+This is the final report for the Prediction Assignment Writeup from Coursera's Practical Machine Learning course. The main goal of the project is to predict the manner in which 6 participants performed some physical exercises ("classe" variable). The finaly machine learning chosen algorithm is  then applied to predict the 20 test cases in the test data to answer the quiz at the end of the course.
+
+### Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+### Exploratory Analysis
+
+## Loading the dataset
+
+Prior to load the dataset (divided in training and test datasets), we will need the packages:
+
+```{r}
 setwd("//Users/pherreraariza/Documents/Coursera/8_Machine_Learning/8ML_Project")
 library(knitr)
 library(caret)
@@ -8,7 +33,11 @@ library(rattle)
 library(randomForest)
 library(corrplot)
 library(nnet)
+```
 
+Then, we will load the datasets, and using caret package, we will perform the data partition into a training and a test set, as follows:
+
+```{r}
 # set the URL for the download
 UrlTrain <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
 UrlTest  <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
@@ -21,7 +50,11 @@ testing  <- read.csv(url(UrlTest))
 inTrain  <- createDataPartition(training$classe, p=0.7, list=FALSE)
 TrainSet <- training[inTrain, ]
 TestSet  <- training[-inTrain, ]
+```
 
+As we observe that there are a lot of NA values, we need to clean the data, removing the near zero variables (from caret package), the variables with at least 95% of NAs and the identifiers variables (such as id and some timestamps) that will not be used in the models.
+
+```{r}
 # delete near zero variables
 NZV <- nearZeroVar(TrainSet)
 TrainSet <- TrainSet[, -NZV]
@@ -35,85 +68,140 @@ TestSet  <- TestSet[, mostlyNA==FALSE]
 # remove identification only variables (columns 1 to 5)
 TrainSet <- TrainSet[, -(1:5)]
 TestSet  <- TestSet[, -(1:5)]
+```
 
+In the end, we will have a dataset with 54 variables.
+
+## Correlation variables
+
+We will perform a analysis with a correlation matrix, to see which variables are highly or poorly correlated:
+
+```{r, echo=FALSE}
 # correlation matrix
 corMatrix <- cor(TrainSet[, -54])
 corrplot(corMatrix, order = "FPC", method = "circle", type = "lower", 
          tl.cex = 0.8, tl.col = rgb(0, 0, 0))
+```
 
+
+### Model building
+
+Five models will be tested to the training set, and the best one with better accuracy will the applied to the predict the 20 test questions from the quiz. 
+
+## Random forest
+
+```{r}
 # model fit RF
 controlRF <- trainControl(method="cv", number=3, verboseIter=FALSE)
 modFitRandForest <- train(classe ~ ., data=TrainSet, method="rf", trControl=controlRF)
 modFitRandForest$finalModel
+```
 
+```{r}
 # prediction on Test dataset
 predictRandForest <- predict(modFitRandForest, newdata=TestSet)
 confMatRandForest <- confusionMatrix(predictRandForest, TestSet$classe)
 confMatRandForest
+```
 
+```{r}
 # plot matrix results
 plot(confMatRandForest$table, col = confMatRandForest$byClass, 
      main = paste("Random Forest - Accuracy =",
                   round(confMatRandForest$overall['Accuracy'], 4)))
+```
 
-# model fit tree decision
+## Decision tree
+
+```{r}
 modFitDecTree <- rpart(classe ~ ., data=TrainSet, method="class")
 fancyRpartPlot(modFitDecTree)
+```
 
+```{r}
 # prediction on Test dataset
 predictDecTree <- predict(modFitDecTree, newdata=TestSet, type="class")
 confMatDecTree <- confusionMatrix(predictDecTree, TestSet$classe)
 confMatDecTree
+```
 
+```{r}
 # plot matrix results
 plot(confMatDecTree$table, col = confMatDecTree$byClass, 
      main = paste("Decision Tree - Accuracy =",
                   round(confMatDecTree$overall['Accuracy'], 4)))
+```
 
+## Generalized Boosted Model
+
+```{r}
 # model fit GBM
 controlGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
 modFitGBM  <- train(classe ~ ., data=TrainSet, method = "gbm",
                     trControl = controlGBM, verbose = FALSE)
 modFitGBM$finalModel
+```
 
+```{r}
 # prediction on Test dataset
 predictGBM <- predict(modFitGBM, newdata=TestSet)
 confMatGBM <- confusionMatrix(predictGBM, TestSet$classe)
 confMatGBM
+```
 
+```{r}
 # plot matrix results
 plot(confMatGBM$table, col = confMatGBM$byClass, 
      main = paste("GBM - Accuracy =", round(confMatGBM$overall['Accuracy'], 4)))
+```
 
+## Neural Network
+
+```{r}
 # model fit NN
 controlNN <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
 modFitNN  <- train(classe ~ ., data=TrainSet, method = "pcaNNet", 
                     trControl = controlNN, trace=F)
 modFitNN$finalModel
+```
 
+```{r}
 # prediction on Test dataset
 predictNN <- predict(modFitNN, newdata=TestSet)
 confMatNN <- confusionMatrix(predictNN, TestSet$classe)
 confMatNN
+```
 
+
+```{r}
 # plot matrix results
 plot(confMatNN$table, col = confMatNN$byClass, 
      main = paste("Neural Net - Accuracy =", round(confMatNN$overall['Accuracy'], 4)))
+```
 
+## Support Vector Machine
 
+```{r}
 # model fit SVM
 controlSVM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
 modFitSVM  <- train(classe ~ ., data=TrainSet, method = "svmRadial", 
                    trControl = controlSVM, verbose = FALSE)
 modFitSVM$finalModel
+```
 
+```{r}
 # prediction on Test dataset
 predictSVM <- predict(modFitSVM, newdata=TestSet)
 confMatSVM <- confusionMatrix(predictSVM, TestSet$classe)
 confMatSVM
+```
 
+```{r}
 # plot matrix results
 plot(confMatSVM$table, col = confMatSVM$byClass, 
      main = paste("SVM- Accuracy =", round(confMatSVM$overall['Accuracy'], 4)))
+```
+
+The results are impressive with the black box models, and comparing the accuracy, seems logic to use the Random forest the predict the 20 test questions from the quiz.
 
 
